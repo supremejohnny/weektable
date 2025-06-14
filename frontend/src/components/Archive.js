@@ -109,7 +109,7 @@ export default function Archive() {
                       {week.map((cell,ci)=>(
                         <td
                           key={ci}
-                          style={{ width:20, height:20, textAlign:'center', cursor: cell ? 'pointer' : 'default' }}
+                          style={{ width:20, height:20, textAlign:'center', cursor: cell ? 'pointer' : 'default', border:'1px solid #eee' }}
                           title={cell ? tasks.map(t => `${t.name} ${cell.statuses[t.id] ? '√' : '×'}`).join('\n') : ''}
                           onClick={e => {
                             if (!cell) return;
