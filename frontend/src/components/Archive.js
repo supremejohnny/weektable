@@ -148,6 +148,7 @@ export default function Archive() {
           zIndex:1000,
           whiteSpace:'nowrap'
         }}>
+          {popup.cell.done_count + '/' + popup.cell.total_count}
           {tasks.map(t => (
             <div key={t.id}>{t.name} {popup.cell.statuses[t.id] ? '√' : '×'}</div>
           ))}
