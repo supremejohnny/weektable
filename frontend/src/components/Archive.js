@@ -2,115 +2,144 @@ import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 
 export default function Archive() {
-  const [months, setMonths] = useState([]);
-  const [sel, setSel]      = useState(null);
-  const [days, setDays]     = useState([]);
-  const [tasks, setTasks]   = useState([]);
-  const [popup, setPopup]   = useState(null);
-  const hideTimer           = useRef(null);
+  const [years, setYears] = useState([]);
+  const [year, setYear] = useState('');
+  const [monthData, setMonthData] = useState({});
+  const [tasks, setTasks] = useState([]);
+  const [popup, setPopup] = useState(null);
+  const hideTimer = useRef(null);
 
-  // 加载月份档案列表 & 任务
+  // 加载年列表与任务
   useEffect(() => {
     axios.get('/api/monthly/archives')
       .then(res => {
-        setMonths(res.data.archives);
-        if (res.data.archives.length) setSel(res.data.archives[0]);
+        const months = res.data.archives;
+        const ys = Array.from(new Set(months.map(m => m.slice(0,4)))).sort((a,b)=>b-a);
+        if (ys.length === 0) ys.push(String(new Date().getFullYear()));
+        setYears(ys);
+        if (ys.length) setYear(ys[0]);
       });
     axios.get('/api/tasks')
       .then(res => setTasks(res.data.tasks));
   }, []);
 
-  // 加载所选月份数据
+  // 加载指定年份的12个月数据
   useEffect(() => {
-    if (!sel) return;
-    axios.get(`/api/monthly_records?month=${sel}`)
-      .then(res => setDays(res.data.days));
-  }, [sel]);
-
-  // 生成日历格子二维数组 (周一~周日)
-  const weeks = [];
-  if (days.length) {
-    // 确定第一天星期几 (0=Sun,1=Mon…)
-    const firstDow = new Date(days[0].date).getDay();
-    let week = Array(7).fill(null);
-    // 从 Monday=1 映射
-    let idx = firstDow === 0 ? 6 : firstDow - 1;
-    days.forEach(d => {
-      week[idx] = d;
-      idx++;
-      if (idx === 7) {
-        weeks.push(week);
-        week = Array(7).fill(null);
-        idx = 0;
-      }
+    if (!year) return;
+    const months = Array.from({length:12}, (_,i)=>`${year}-${String(i+1).padStart(2,'0')}`);
+    Promise.all(
+      months.map(m =>
+        axios.get(`/api/monthly_records?month=${m}`)
+          .then(res => [m, res.data.days])
+      )
+    ).then(arr => {
+      const data = {};
+      arr.forEach(([m,days]) => { data[m] = days; });
+      setMonthData(data);
     });
-    if (week.some(x=>x!==null)) weeks.push(week);
-  }
+  }, [year]);
+
+  // 根据 days 数组生成周视图
+  const buildWeeks = days => {
+    const weeks = [];
+    if (days.length) {
+      const firstDow = new Date(days[0].date).getDay();
+      let week = Array(7).fill(null);
+      let idx = firstDow === 0 ? 6 : firstDow - 1;
+      days.forEach(d => {
+        week[idx] = d;
+        idx++;
+        if (idx === 7) {
+          weeks.push(week);
+          week = Array(7).fill(null);
+          idx = 0;
+        }
+      });
+      if (week.some(x => x !== null)) weeks.push(week);
+    }
+    return weeks;
+  };
+
+  const getEmoji = cell => {
+    if (!cell) return '';
+    if (cell.done_count === 0) return '😠';
+    if (cell.done_count === cell.total_count) return '😇';
+    return '😄';
+  };
 
   return (
     <div>
-      <h3>历史签到档案（按月）</h3>
+      <h3>历史签到档案（按年）</h3>
       <div style={{ marginBottom:16 }}>
-        {months.map(m => (
-          <button key={m}
-                  onClick={()=>setSel(m)}
-                  style={{
-                    marginRight:8, padding:'4px 10px',
-                    background: m===sel?'#1890ff':'#eee',
-                    color:    m===sel?'#fff':'#000',
-                    border:'none', cursor:'pointer'
-                  }}
-          >{m}</button>
+        {years.map(y => (
+          <button
+            key={y}
+            onClick={() => setYear(y)}
+            style={{
+              marginRight:8,
+              padding:'4px 10px',
+              background: y===year ? '#1890ff' : '#eee',
+              color: y===year ? '#fff' : '#000',
+              border:'none',
+              cursor:'pointer'
+            }}
+          >{y}</button>
         ))}
       </div>
 
-      {weeks.length>0 && (
-        <table style={{ borderCollapse:'collapse', width:'100%' }} border="1">
-          <thead>
-            <tr style={{ background:'#f4f4f4' }}>
-              {['一','二','三','四','五','六','日'].map(d => (
-                <th key={d} style={{ padding:6 }}>周{d}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {weeks.map((week, wi) => (
-              <tr key={wi}>
-                {week.map((cell, ci) => (
-                  <td key={ci} style={{ height:80, verticalAlign:'top', padding:4, cursor: cell ? 'pointer' : 'default' }}
-                      title={
-                        cell
-                          ? tasks.map(t => `${t.name} ${cell.statuses[t.id]? '√':'×'}`).join('\n')
-                          : ''
-                      }
-                      onClick={e => {
-                        if (!cell) return;
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        setPopup({
-                          cell,
-                          x: rect.left + window.scrollX + rect.width/2,
-                          y: rect.top + window.scrollY,
-                        });
-                        if (hideTimer.current) clearTimeout(hideTimer.current);
-                        hideTimer.current = setTimeout(() => setPopup(null), 2000);
-                      }}
-                  >
-                    {cell
-                      ? `${cell.done_count}/${cell.total_count}`
-                      : ''
-                    }
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:16 }}>
+        {Array.from({length:12}, (_,i)=>{
+          const m = `${year}-${String(i+1).padStart(2,'0')}`;
+          const days = monthData[m] || [];
+          const weeks = buildWeeks(days);
+          return (
+            <div key={m} style={{ border:'1px solid #ccc', padding:4 }}>
+              <div style={{ textAlign:'center', fontWeight:'bold', marginBottom:4 }}>{m}</div>
+              <table style={{ borderCollapse:'collapse', width:'100%', fontSize:12 }}>
+                <thead>
+                  <tr>
+                    {['一','二','三','四','五','六','日'].map(d => (
+                      <th key={d} style={{ padding:2 }}>周{d}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {weeks.map((week,wi)=>(
+                    <tr key={wi}>
+                      {week.map((cell,ci)=>(
+                        <td
+                          key={ci}
+                          style={{ width:20, height:20, textAlign:'center', cursor: cell ? 'pointer' : 'default' }}
+                          title={cell ? tasks.map(t => `${t.name} ${cell.statuses[t.id] ? '√' : '×'}`).join('\n') : ''}
+                          onClick={e => {
+                            if (!cell) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setPopup({
+                              cell,
+                              x: rect.left + window.scrollX + rect.width/2,
+                              y: rect.top + window.scrollY
+                            });
+                            if (hideTimer.current) clearTimeout(hideTimer.current);
+                            hideTimer.current = setTimeout(() => setPopup(null), 2000);
+                          }}
+                        >
+                          {getEmoji(cell)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+
       {popup && (
         <div style={{
           position:'absolute',
           left: popup.x - 140,
-          top: popup.y + 84,
+          top: popup.y + 40,
           transform:'translate(-50%, -100%)',
           background:'#fff',
           border:'1px solid #ccc',
@@ -124,7 +153,6 @@ export default function Archive() {
           ))}
         </div>
       )}
-      {weeks.length===0 && <p>该月暂无数据。</p>}
     </div>
   );
 }
