@@ -77,7 +77,7 @@ export default function Archive() {
             {weeks.map((week, wi) => (
               <tr key={wi}>
                 {week.map((cell, ci) => (
-                  <td key={ci} style={{ height:80, verticalAlign:'top', padding:4 }}
+                  <td key={ci} style={{ height:80, verticalAlign:'top', padding:4, cursor: cell ? 'pointer' : 'default' }}
                       title={
                         cell
                           ? tasks.map(t => `${t.name} ${cell.statuses[t.id]? '√':'×'}`).join('\n')
@@ -109,8 +109,8 @@ export default function Archive() {
       {popup && (
         <div style={{
           position:'absolute',
-          left: popup.x,
-          top: popup.y,
+          left: popup.x - 140,
+          top: popup.y + 84,
           transform:'translate(-50%, -100%)',
           background:'#fff',
           border:'1px solid #ccc',
