@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 
 export default function Archive() {
@@ -6,6 +6,8 @@ export default function Archive() {
   const [sel, setSel]      = useState(null);
   const [days, setDays]     = useState([]);
   const [tasks, setTasks]   = useState([]);
+  const [popup, setPopup]   = useState(null);
+  const hideTimer           = useRef(null);
 
   // 加载月份档案列表 & 任务
   useEffect(() => {
@@ -81,6 +83,17 @@ export default function Archive() {
                           ? tasks.map(t => `${t.name} ${cell.statuses[t.id]? '√':'×'}`).join('\n')
                           : ''
                       }
+                      onClick={e => {
+                        if (!cell) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setPopup({
+                          cell,
+                          x: rect.left + window.scrollX + rect.width/2,
+                          y: rect.top + window.scrollY,
+                        });
+                        if (hideTimer.current) clearTimeout(hideTimer.current);
+                        hideTimer.current = setTimeout(() => setPopup(null), 2000);
+                      }}
                   >
                     {cell
                       ? `${cell.done_count}/${cell.total_count}`
@@ -92,6 +105,24 @@ export default function Archive() {
             ))}
           </tbody>
         </table>
+      )}
+      {popup && (
+        <div style={{
+          position:'absolute',
+          left: popup.x,
+          top: popup.y,
+          transform:'translate(-50%, -100%)',
+          background:'#fff',
+          border:'1px solid #ccc',
+          boxShadow:'0 2px 6px rgba(0,0,0,0.2)',
+          padding:6,
+          zIndex:1000,
+          whiteSpace:'nowrap'
+        }}>
+          {tasks.map(t => (
+            <div key={t.id}>{t.name} {popup.cell.statuses[t.id] ? '√' : '×'}</div>
+          ))}
+        </div>
       )}
       {weeks.length===0 && <p>该月暂无数据。</p>}
     </div>
